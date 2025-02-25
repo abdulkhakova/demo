@@ -31,59 +31,59 @@ import java.util.stream.IntStream;
 
 @LambdaHandler(
     lambdaName = "uuid_generator",
-	roleName = "uuid_generator-role",
-	isPublishVersion = true,
-	aliasName = "${lambdas_alias_name}",
-	logsExpiration = RetentionSetting.SYNDICATE_ALIASES_SPECIFIED
+    roleName = "uuid_generator-role",
+    isPublishVersion = true,
+    aliasName = "${lambdas_alias_name}",
+    logsExpiration = RetentionSetting.SYNDICATE_ALIASES_SPECIFIED
 )
 @RuleEventSource(targetRule = "uuid_trigger")
 @EnvironmentVariables(value = {
-		@EnvironmentVariable(key = "region", value = "${region}"),
-		@EnvironmentVariable(key = "target_bucket", value = "${target_bucket}")
+    @EnvironmentVariable(key = "region", value = "${region}"),
+    @EnvironmentVariable(key = "target_bucket", value = "uuid-storage") // Replace with actual bucket name
 })
 @DependsOn(resourceType = ResourceType.CLOUDWATCH_RULE, name = "uuid_trigger")
-@DependsOn(resourceType = ResourceType.S3_BUCKET, name = "${target_bucket}")
+@DependsOn(resourceType = ResourceType.S3_BUCKET, name = "uuid-storage") // Replace with actual bucket name
 public class UuidGenerator implements RequestHandler<ScheduledEvent, String> {
 
-	private static final String BUCKET_NAME = System.getenv("target_bucket");
+    private static final String BUCKET_NAME = System.getenv("target_bucket");
 
-	public String handleRequest(ScheduledEvent event, Context context) {
-		LambdaLogger logger = context.getLogger();
+    public String handleRequest(ScheduledEvent event, Context context) {
+        LambdaLogger logger = context.getLogger();
 
-		// Generate 10 random UUIDs
-		Map<String, Object> uuids = new HashMap<>();
-		uuids.put("ids", IntStream.range(0, 10)
-				.mapToObj(i -> UUID.randomUUID().toString())
-				.collect(Collectors.toList()));
+        // Generate 10 random UUIDs
+        Map<String, Object> uuids = new HashMap<>();
+        uuids.put("ids", IntStream.range(0, 10)
+                .mapToObj(i -> UUID.randomUUID().toString())
+                .collect(Collectors.toList()));
 
-		try {
-			// Convert UUIDs map to JSON string
-			ObjectMapper mapper = new ObjectMapper();
-			String jsonString = mapper.writeValueAsString(uuids);
+        try {
+            // Convert UUIDs map to JSON string
+            ObjectMapper mapper = new ObjectMapper();
+            String jsonString = mapper.writeValueAsString(uuids);
 
-			// Prepare the S3 object key
-			String objectKey = Instant.now().toString();
+            // Prepare the S3 object key
+            String objectKey = Instant.now().toString();
 
-			// Upload JSON string to S3
-			AmazonS3 s3Client = AmazonS3ClientBuilder.standard().withRegion(System.getenv("region")).build();
-			ObjectMetadata metadata = new ObjectMetadata();
-			metadata.setContentType("application/json");
-			metadata.setContentLength(jsonString.length());
-			PutObjectRequest putRequest = new PutObjectRequest(
-					BUCKET_NAME,
-					objectKey,
-					new ByteArrayInputStream(jsonString.getBytes(StandardCharsets.UTF_8)),
-					metadata
-			);
-			s3Client.putObject(putRequest);
+            // Upload JSON string to S3
+            AmazonS3 s3Client = AmazonS3ClientBuilder.standard().withRegion(System.getenv("region")).build();
+            ObjectMetadata metadata = new ObjectMetadata();
+            metadata.setContentType("application/json");
+            metadata.setContentLength(jsonString.length());
+            PutObjectRequest putRequest = new PutObjectRequest(
+                    BUCKET_NAME,
+                    objectKey,
+                    new ByteArrayInputStream(jsonString.getBytes(StandardCharsets.UTF_8)),
+                    metadata
+            );
+            s3Client.putObject(putRequest);
 
-			logger.log("Successfully uploaded data to " + BUCKET_NAME + "/" + objectKey);
+            logger.log("Successfully uploaded data to " + BUCKET_NAME + "/" + objectKey);
 
-		} catch (Exception e) {
-			logger.log("Error: " + e.getMessage());
-			throw new RuntimeException(e);
-		}
+        } catch (Exception e) {
+            logger.log("Error: " + e.getMessage());
+            throw new RuntimeException(e);
+        }
 
-		return "Success";
-	}
+        return "Success";
+    }
 }
